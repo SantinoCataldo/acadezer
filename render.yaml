@@ -1,0 +1,30 @@
+services:
+  - type: web
+    name: acadezer
+    runtime: docker
+    plan: free
+    branch: main
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    healthCheckPath: /health
+    envVars:
+      - key: SPRING_PROFILES_ACTIVE
+        value: postgres
+      - key: ACADEMIC_DB_URL
+        sync: false
+      - key: ACADEMIC_DB_USERNAME
+        sync: false
+      - key: ACADEMIC_DB_PASSWORD
+        sync: false
+      - key: JWT_SECRET
+        sync: false
+      - key: JWT_EXPIRATION_MS
+        value: "3600000"
+      - key: AI_API_KEY
+        sync: false
+      - key: AI_MODEL
+        value: openai/gpt-oss-20b
+      - key: AI_TIMEOUT
+        value: 20s
+      - key: CORS_ORIGIN
+        value: http://localhost:4200

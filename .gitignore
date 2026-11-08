@@ -37,3 +37,9 @@ build/
 
 ### Uploads ###
 uploads/
+
+# Academic development database and environment secrets
+data/
+.env
+.env.*
+!.env.example
