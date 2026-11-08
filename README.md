@@ -4,6 +4,75 @@ Backend pequeño para dos integrantes: Java 21, Spring Boot **4.0.6**, Maven Wra
 Spring MVC, Security, JPA, Jakarta Validation, BCrypt y JJWT 0.12.6. Cada estudiante
 administra sus materias, apuntes de texto, pendientes, evaluaciones y asistencias.
 
+## Diagrama entidad-relación (DER)
+
+El diagrama representa las tablas de Neon y sus claves primarias (`PK`), foráneas
+(`FK`) y únicas (`UK`). Un usuario puede tener varias materias; cada materia puede
+tener varios apuntes, pendientes, evaluaciones y asistencias. Cada recurso pertenece
+a una sola materia y, a través de ella, a un solo usuario.
+
+```mermaid
+erDiagram
+    usuarios ||--o{ materias : posee
+    materias ||--o{ apuntes : contiene
+    materias ||--o{ pendientes : organiza
+    materias ||--o{ evaluaciones : registra
+    materias ||--o{ asistencias : registra
+
+    usuarios {
+        bigint id PK
+        varchar nombre
+        varchar email UK
+        varchar password "Hash BCrypt"
+        varchar role "STUDENT o ADMIN"
+        boolean enabled "Inicialmente true"
+    }
+
+    materias {
+        bigint id PK
+        varchar nombre
+        varchar descripcion "Opcional"
+        bigint usuario_id FK
+    }
+
+    apuntes {
+        bigint id PK
+        varchar titulo
+        varchar contenido
+        bigint materia_id FK
+    }
+
+    pendientes {
+        bigint id PK
+        varchar titulo
+        varchar descripcion "Opcional"
+        date fecha_limite "Opcional"
+        boolean completado "Inicialmente false"
+        bigint materia_id FK
+    }
+
+    evaluaciones {
+        bigint id PK
+        varchar nombre
+        date fecha
+        numeric calificacion "Opcional, de 0 a 10"
+        bigint materia_id FK
+    }
+
+    asistencias {
+        bigint id PK
+        date fecha
+        varchar estado "PRESENTE, AUSENTE o JUSTIFICADA"
+        bigint materia_id FK
+    }
+```
+
+En `asistencias`, la combinación **`materia_id` + `fecha` es única**. Los roles y
+estados son enums almacenados como texto, sin tablas adicionales. La IA utiliza el
+contenido de `apuntes`; las preguntas generadas no se guardan en la base de datos.
+El rol ADMIN permite administrar cuentas y consultar estadísticas, sin cambiar
+la propiedad ni el acceso privado a las materias y su contenido.
+
 ## Iniciar en desarrollo con Neon y Groq
 
 Requisitos: JDK 21 y acceso a Internet para descargar dependencias en la primera
