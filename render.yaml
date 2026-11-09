@@ -28,3 +28,26 @@ services:
         value: 20s
       - key: CORS_ORIGIN
         value: http://localhost:4200
+      - key: LOGIN_ACCOUNT_LIMIT
+        value: "10"
+      - key: LOGIN_IP_LIMIT
+        value: "100"
+      - key: LOGIN_LIMIT_WINDOW
+        value: 15m
+      - key: REGISTER_ACCOUNT_LIMIT
+        value: "5"
+      - key: REGISTER_IP_LIMIT
+        value: "30"
+      - key: REGISTER_LIMIT_WINDOW
+        value: 1h
+      - key: AI_USER_QUOTA
+        value: "20"
+      - key: AI_QUOTA_WINDOW
+        value: 1h
+      - key: AI_MAX_CONCURRENT
+        value: "2"
+      - key: AI_MAX_CONCURRENT_PER_USER
+        value: "1"
+      - key: RATE_LIMIT_MAX_KEYS
+        value: "10000"
+      # Add TRUSTED_PROXY_CIDRS in Render only after verifying the proxy addresses.

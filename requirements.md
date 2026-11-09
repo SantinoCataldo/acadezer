@@ -16,6 +16,11 @@
 14. El registro siempre crea STUDENT; el rol ADMIN se asigna por SQL. No habilita acceso a apuntes privados ajenos.
 15. Los request se declaran como record, con validaciones por campo; entidades, DTO, servicios y mappers usan archivos en inglés.
 16. Despliegue preparado para Render con Docker/Java 21, PostgreSQL de Neon y variables de entorno. GET /health es público y no expone datos privados.
+17. Login y registro con ventanas temporales configurables por cuenta e IP, respuesta 429 y Retry-After, sin bloqueo permanente de cuentas.
+18. Cabeceras de IP aceptadas solo desde proxies configurados como confiables; por defecto se usa la IP de la conexión.
+19. IA con cuota por usuario y concurrencia limitada por usuario e instancia, verificadas después de autenticar y comprobar propiedad y antes de llamar al proveedor.
+20. Liberación de permisos de IA ante éxito, errores o timeout; 429 sin llamada al proveedor cuando no hay cupo.
+21. Controles en memoria acotada: se documenta su reinicio con el proceso y su independencia entre instancias, sin cambios de esquema en Neon.
 
 Arquitectura sencilla de controlador, servicio y repositorio, con DTO y JPA.
 Base de desarrollo separada del ATS y credenciales externas al repositorio.

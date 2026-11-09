@@ -13,9 +13,12 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
 import org.springframework.web.cors.*;
 import tools.jackson.databind.json.JsonMapper;
 import java.util.List;
+import com.acadezer.api.ratelimit.AuthRateLimitFilter;
+import com.acadezer.api.ratelimit.AuthRequestLimiter;
+import com.acadezer.api.ratelimit.ClientIpResolver;
 @Configuration
 public class SecurityConfig {
-    @Bean SecurityFilterChain security(HttpSecurity http, JwtAuthenticationFilter jwt, RestAuthenticationEntryPoint entry, JsonMapper json, CorsConfigurationSource corsConfigurationSource) throws Exception {
+    @Bean SecurityFilterChain security(HttpSecurity http, JwtAuthenticationFilter jwt, RestAuthenticationEntryPoint entry, JsonMapper json, CorsConfigurationSource corsConfigurationSource, AuthRequestLimiter authLimits, ClientIpResolver ips) throws Exception {
         return http.csrf(AbstractHttpConfigurer::disable).cors(cors -> cors.configurationSource(corsConfigurationSource))
             .sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
             .exceptionHandling(e -> e.authenticationEntryPoint(entry).accessDeniedHandler((req, res, ex) -> {
@@ -27,13 +30,16 @@ public class SecurityConfig {
                 .requestMatchers(org.springframework.http.HttpMethod.GET, "/health").permitAll()
                 .requestMatchers("/api/admin/**").hasRole("ADMIN")
                 .anyRequest().authenticated())
-            .addFilterBefore(jwt, UsernamePasswordAuthenticationFilter.class).build();
+            .addFilterBefore(jwt, UsernamePasswordAuthenticationFilter.class)
+            .addFilterBefore(new AuthRateLimitFilter(authLimits, ips, json), JwtAuthenticationFilter.class)
+            .build();
     }
     @Bean PasswordEncoder passwordEncoder() { return new BCryptPasswordEncoder(); }
     @Bean CorsConfigurationSource corsConfigurationSource(@Value("${app.cors-origin}") String origin) {
         CorsConfiguration c = new CorsConfiguration(); c.setAllowedOrigins(List.of(origin));
         c.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
         c.setAllowedHeaders(List.of("Authorization", "Content-Type"));
+        c.setExposedHeaders(List.of("Retry-After"));
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource(); source.registerCorsConfiguration("/**", c); return source;
     }
 }

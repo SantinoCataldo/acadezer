@@ -241,6 +241,115 @@ está ignorado, pero Spring no lo carga automáticamente.
 Todos los cuerpos y respuestas usan JSON. Registro, login y `GET /health` son públicos.
 Para el resto enviar `Authorization: Bearer <accessToken>`.
 
+### Límites de autenticación y de IA
+
+Los controles son locales a cada proceso Java y están habilitados por defecto.
+No requieren tablas nuevas ni modifican datos de Neon. Configuración por entorno:
+
+| Variable | Predeterminado | Alcance |
+|---|---|---|
+| `LOGIN_ACCOUNT_LIMIT` | `10` | Intentos de login por email normalizado |
+| `LOGIN_IP_LIMIT` | `100` | Solicitudes de login por IP |
+| `LOGIN_LIMIT_WINDOW` | `15m` | Ventana de ambos límites de login |
+| `REGISTER_ACCOUNT_LIMIT` | `5` | Intentos de registro por email normalizado |
+| `REGISTER_IP_LIMIT` | `30` | Solicitudes de registro por IP |
+| `REGISTER_LIMIT_WINDOW` | `1h` | Ventana de ambos límites de registro |
+| `AI_USER_QUOTA` | `20` | Intentos admitidos de generación por usuario autenticado |
+| `AI_QUOTA_WINDOW` | `1h` | Ventana de la cuota de IA |
+| `AI_MAX_CONCURRENT` | `2` | Generaciones simultáneas por instancia |
+| `AI_MAX_CONCURRENT_PER_USER` | `1` | Generaciones simultáneas de un usuario |
+| `RATE_LIMIT_MAX_KEYS` | `10000` | Máximo de claves por contador en memoria (uno para autenticación y otro para IA) |
+| `TRUSTED_PROXY_CIDRS` | Vacío | IPs o CIDRs de proxies confiables, separados por comas |
+
+Los límites y las duraciones deben ser positivos. Las ventanas comienzan con el
+primer intento de cada clave; no son ventanas móviles ni se alinean con la hora.
+Los intentos rechazados no prolongan la ventana. Al vencerla se vuelve a permitir
+el acceso, sin cambiar `enabled`, el rol ni la contraseña de la cuenta.
+
+**Login y registro:** los contadores de ambos endpoints son independientes. La IP
+se controla antes de leer/validar el JSON, por lo que también cuentan los cuerpos
+malformados. Después de validar el request se controla el email, incluso si no
+existe una cuenta. Las mayúsculas no permiten crear otro contador. Los intentos
+exitosos y fallidos cuentan; un login exitoso no reinicia la protección. Al superar
+cualquiera de los límites se devuelve 429, sin consultar credenciales ni ejecutar
+el registro. Un límite de cuenta puede producir una denegación temporal para ese
+email; no existe un bloqueo permanente o una penalización que crezca con los intentos.
+
+**IA:** se verifica autenticación y propiedad del apunte antes de consultar la cuota.
+Un apunte ajeno o inexistente mantiene su 404, aun si el usuario agotó la cuota.
+La cuota es por usuario, compartida entre sus apuntes; no depende de un `usuarioId`
+enviado por Angular. ADMIN también está sujeto a los límites cuando usa sus apuntes.
+Una configuración de IA ausente o un contenido insuficiente detectado localmente
+no consume cuota. Antes de llamar al proveedor se comprueban cuota y concurrencia,
+sin esperar en una cola: si no hay cupo se devuelve 429 y no se llama a Groq.
+Los rechazos por concurrencia no consumen cuota. Los intentos ya admitidos cuentan
+incluso si Groq falla, devuelve contenido insuficiente o vence el timeout, para no
+permitir llamadas costosas ilimitadas. El permiso de concurrencia se libera siempre
+al terminar, también ante errores, interrupciones o timeout.
+
+**IP y proxies:** `server.forward-headers-strategy=none` evita que Spring/Tomcat
+reescriba la IP antes del control. Mantener ese valor. Por defecto se usa únicamente
+la IP de la conexión y se ignoran todas las cabeceras de IP. Si esa IP pertenece a
+`TRUSTED_PROXY_CIDRS`, se procesa `X-Forwarded-For` de derecha a izquierda, atravesando
+solo proxies configurados y deteniéndose en la primera IP no confiable. Así se
+ignoran prefijos falsificados. Cadenas inválidas o excesivas vuelven a la IP de la
+conexión. `Forwarded`, `X-Real-IP` y `CF-Connecting-IP` no se utilizan.
+
+En Render hay proxies delante de la aplicación: configurar únicamente sus IPs o
+redes verificadas y los proxies intermedios controlados, sin adivinar rangos ni usar
+`0.0.0.0/0` o `::/0` (la aplicación los rechaza). Si no se pueden verificar, mantener
+la lista vacía: es seguro, pero los clientes que llegan por el mismo proxy comparten
+el contador de IP. Ajustar los límites de IP a ese escenario. El contador por cuenta
+sigue siendo independiente. Esta implementación no asume que cualquier cabecera
+recibida en Render sea confiable. Referencias: [IpAddressMatcher de Spring Security](https://docs.spring.io/spring-security/reference/7.0/api/java/org/springframework/security/web/util/matcher/IpAddressMatcher.html)
+y [seguridad de X-Forwarded-For](https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/X-Forwarded-For).
+
+**Memoria y varias instancias:** contadores y permisos no se guardan en Neon. Un
+reinicio, un despliegue o la suspensión/reactivación de Render reinician los límites.
+Cada instancia tiene su propia cuota y concurrencia: con varias réplicas no existe
+un límite global compartido. Esta solución está pensada para una sola instancia;
+para coordinar varias se necesitaría un almacenamiento compartido, fuera de esta
+entrega. Los mapas tienen capacidad máxima; al llenarse rechazan nuevas claves con
+429 hasta que venzan entradas, sin expulsar contadores activos que permitan evadir
+el límite. La limpieza de ventanas expiradas es bajo demanda.
+
+#### Respuesta 429 para Angular
+
+Los límites mantienen el mismo contrato JSON de errores y agregan una cabecera
+`Retry-After` con segundos enteros positivos. CORS expone esa cabecera a Angular:
+
+```http
+HTTP/1.1 429 Too Many Requests
+Content-Type: application/json
+Retry-After: 60
+Access-Control-Expose-Headers: Retry-After
+```
+
+```json
+{"status":429,"message":"Se alcanzó el límite de solicitudes. Intentá nuevamente más tarde","path":"/api/apuntes/1/preguntas","timestamp":"2026-11-09T15:00:00Z"}
+```
+
+Para cuota/ventana se informa el tiempo restante redondeado hacia arriba; cuando
+el límite es de concurrencia se informa `Retry-After: 1`, una indicación para volver
+a intentar, sin garantía de que haya cupo al terminar ese segundo.
+
+```typescript
+import { HttpErrorResponse } from '@angular/common/http';
+
+function retryAfterSeconds(error: HttpErrorResponse): number {
+  const seconds = Number(error.headers.get('Retry-After'));
+  return Number.isFinite(seconds) && seconds > 0 ? Math.ceil(seconds) : 1;
+}
+```
+
+Ante 429, mostrar el mensaje y deshabilitar temporalmente el botón con ese tiempo.
+No cerrar sesión ni tratarlo como credenciales incorrectas (401). No reintentar
+automáticamente generación de IA ni login/registro; el usuario puede volver a
+intentarlo cuando venza la espera. La respuesta JSON conserva `ErrorResponse` y
+los contratos de éxito existentes no cambian. Las variables opcionales ya están
+en `.env.example` y `render.yaml`; `.env.render` privado no se modifica.
+Resumen para implementar en Angular: [docs/frontend-rate-limits.md](docs/frontend-rate-limits.md).
+
 ### Registro e inicio de sesión
 
 `POST /auth/register` → **201**
@@ -509,6 +618,7 @@ Todos los errores controlados comparten:
 | 406 / 415 | Formato de respuesta no aceptado / Content-Type distinto de JSON |
 | 409 | Email o asistencia duplicados / conflicto de integridad |
 | 422 | Apunte insuficiente para preguntas |
+| 429 | Límite temporal de cuenta/IP, cuota de IA, concurrencia o capacidad de contadores; ver `Retry-After` |
 | 502 / 503 / 504 | Fallo del proveedor / IA no configurada o interrumpida / timeout |
 | 500 | Error interno sin detalles sensibles |
 
@@ -582,6 +692,18 @@ docentes, notificaciones, calendarios y sistemas de la facultad.
 
 ## Comprobaciones
 
+Revisión de seguridad del 9 de noviembre de 2026: `./mvnw.cmd -o -q verify`,
+**70 pruebas aprobadas**, sin fallos, errores ni pruebas omitidas, y JAR generado.
+Incluye expiración sin bloqueo permanente, cuentas/IP independientes, contadores
+atómicos bajo concurrencia y memoria acotada, proxies confiables y cabeceras falsas,
+429 con `Retry-After` visible por CORS, autenticación/propiedad antes de cuota de IA,
+rechazo sin llamada al proveedor y liberación de concurrencia tras errores/timeout.
+Se usaron H2 y mocks/servidor HTTP local, sin acceso a Neon ni al proveedor real.
+El primer intento dentro del sandbox no pudo abrir conexiones loopback; la
+verificación completa pasó al permitir esas conexiones locales. No se modificó
+el esquema ni los datos de Neon. La publicación en GitHub se autorizó después
+de completar esta verificación; Render debe desplegar el commit actualizado.
+
 ```powershell
 .\mvnw.cmd clean verify
 ```
@@ -600,7 +722,7 @@ La prueba de orquestación verifica que un apunte ajeno no dispara llamadas.
 
 Verificado el 8 de noviembre de 2026:
 
-- `./mvnw.cmd verify`: 47 pruebas, 0 fallos, 0 errores, 0 omitidas; JAR generado.
+- Verificación anterior: `./mvnw.cmd verify`, 47 pruebas sin fallos.
 - Arranque del JAR con Java 21 y perfil `dev`, usando una H2 de archivo separada en
   `target/smoke-academico`, sin credenciales de IA.
 - Prueba por HTTP real: registro, login, materia, creación/listado/actualización de

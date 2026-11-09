@@ -28,6 +28,13 @@ public class GlobalExceptionHandler {
         return error(ex.getStatus(), ex.getMessage(), req);
     }
 
+    @ExceptionHandler(RateLimitExceededException.class)
+    ResponseEntity<ErrorResponse> rateLimit(RateLimitExceededException ex, HttpServletRequest req) {
+        return ResponseEntity.status(429).contentType(org.springframework.http.MediaType.APPLICATION_JSON)
+            .header("Retry-After", Long.toString(ex.getRetryAfterSeconds()))
+            .body(ErrorResponse.of(429, ex.getMessage(), req.getRequestURI()));
+    }
+
     @ExceptionHandler(MethodArgumentNotValidException.class)
     ResponseEntity<ErrorResponse> validation(MethodArgumentNotValidException ex, HttpServletRequest req) {
         return error(400, ex.getBindingResult().getFieldErrors().stream()
