@@ -35,11 +35,16 @@ public class SecurityConfig {
             .build();
     }
     @Bean PasswordEncoder passwordEncoder() { return new BCryptPasswordEncoder(); }
-    @Bean CorsConfigurationSource corsConfigurationSource(@Value("${app.cors-origin}") String origin) {
+    @Bean UrlBasedCorsConfigurationSource corsConfigurationSource(@Value("${app.cors-origin}") String origin) {
         CorsConfiguration c = new CorsConfiguration();
-        c.setAllowedOriginPatterns(List.of("*"));
+        List<String> origins = java.util.Arrays.stream(origin.split(","))
+            .map(String::trim).filter(value -> !value.isEmpty()).toList();
+        if (origins.isEmpty() || origins.stream().anyMatch(value -> value.contains("*")))
+            throw new IllegalArgumentException("CORS_ORIGIN debe contener orígenes explícitos");
+        c.setAllowedOrigins(origins);
+        c.setAllowCredentials(true);
         c.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
-        c.setAllowedHeaders(List.of("*"));
+        c.setAllowedHeaders(List.of("Authorization", "Content-Type", "X-CSRF-Protection"));
         c.setExposedHeaders(List.of("Retry-After"));
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource(); source.registerCorsConfiguration("/**", c); return source;
     }

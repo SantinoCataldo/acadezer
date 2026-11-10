@@ -19,6 +19,12 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     private final RestAuthenticationEntryPoint entryPoint;
 
     @Override
+    protected boolean shouldNotFilter(HttpServletRequest request) {
+        String path = request.getRequestURI().substring(request.getContextPath().length());
+        return "POST".equals(request.getMethod()) && ("/auth/refresh".equals(path) || "/auth/logout".equals(path));
+    }
+
+    @Override
     protected void doFilterInternal(HttpServletRequest req, HttpServletResponse res, FilterChain chain)
             throws ServletException, IOException {
         String header = req.getHeader("Authorization");

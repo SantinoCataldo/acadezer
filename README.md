@@ -222,8 +222,9 @@ se comprueban con las pruebas locales.
 | `JWT_SECRET` | Obligatoria fuera de `local`; en `local` ya existe `jwt.secret` privado |
 | `JWT_EXPIRATION_MS` | `3600000` (una hora) |
 | `JWT_REFRESH_EXPIRATION_MS` | `604800000` (siete días), duración del refresh token |
+| `REFRESH_COOKIE_SECURE` | `true`; solo usar `false` en desarrollo HTTP local |
 | `PORT` | `8080` |
-| `CORS_ORIGIN` | `http://localhost:4200`, un único origen Angular permitido |
+| `CORS_ORIGIN` | `http://localhost:4200`, orígenes explícitos separados por comas |
 | `SPRING_PROFILES_ACTIVE` | Ausente: `local`; alternativas: `dev`, `postgres` |
 | `ACADEMIC_DB_URL` | Obligatoria con `postgres`, URL JDBC de la base nueva |
 | `ACADEMIC_DB_USERNAME` | Obligatoria con `postgres` |
@@ -381,7 +382,7 @@ Respuesta:
 Respuesta:
 
 ```json
-{"accessToken":"<JWT>","refreshToken":"<TOKEN_OPACO>","tokenType":"Bearer","expiresIn":3600,"usuario":{"id":1,"nombre":"Ana Pérez","email":"ana@example.com","role":"STUDENT","enabled":true}}
+{"accessToken":"<JWT>","tokenType":"Bearer","expiresIn":3600,"usuario":{"id":1,"nombre":"Ana Pérez","email":"ana@example.com","role":"STUDENT","enabled":true}}
 ```
 
 Emails normalizados a minúsculas y sin espacios en los extremos, únicos también
@@ -391,29 +392,39 @@ no acepta `role` ni `enabled`. El login entrega un access token y un refresh tok
 
 #### Renovar y cerrar sesión
 
-`POST /auth/refresh` recibe `{"refreshToken":"<TOKEN_OPACO>"}` y devuelve el mismo
-formato del login, con un access token y **un refresh token nuevo**. El anterior se
-consume en una transacción y no puede volver a utilizarse; solicitudes simultáneas
-con el mismo token no pueden renovarlo dos veces. Un token inválido, vencido, ya
-usado o de una cuenta deshabilitada devuelve 401. El refresh se limita por IP con
-la misma ventana de login y puede devolver 429 con `Retry-After`.
+El login devuelve el access token en JSON y establece `acadezer_refresh` en una
+cookie `HttpOnly`, `Secure`, `SameSite=None` y `Path=/auth`. El refresh token ya no
+aparece en el JSON. Angular debe usar `withCredentials: true` en el login y en las
+peticiones de renovación y cierre de sesión.
 
-`POST /auth/logout` recibe el mismo JSON y devuelve 204; revoca ese refresh token.
-El access token ya emitido sigue válido hasta su vencimiento salvo que la cuenta se
-deshabilite. Cada login crea una sesión independiente. Al reactivar una cuenta, un
-refresh token anterior no vencido puede volver a funcionar si no se revocó.
+`POST /auth/refresh` no necesita cuerpo: el navegador envía la cookie. La petición
+debe incluir `X-CSRF-Protection: 1` y un `Origin` permitido. Responde con un access
+token en JSON y una cookie nueva; la anterior queda invalidada. Solo una petición
+simultánea puede renovar el mismo token. Token ausente, inválido, vencido o de
+una cuenta deshabilitada devuelve 401; origen o cabecera CSRF inválidos, 403.
 
-Los refresh tokens son aleatorios de 256 bits; solo se guarda su hash SHA-256 en
-Neon. Cada renovación reinicia la duración configurada y los tokens vencidos se
-eliminan al emitir uno nuevo. El cliente debe conservar el token como credencial
-secreta, reemplazarlo inmediatamente al renovar y serializar las renovaciones para
-que varias peticiones no consuman el mismo token a la vez. Esta versión lo entrega
-en JSON: no implementa cookie HttpOnly ni revocación automática de toda la familia
-ante reutilización. No registrar tokens en logs ni enviarlos como Bearer.
+`POST /auth/logout` usa la misma cookie, cabecera y origen. Revoca el refresh token
+y borra la cookie; devuelve 204. El access token ya emitido dura hasta su vencimiento
+salvo que la cuenta se deshabilite. Cada login es una sesión independiente. Una
+cuenta rehabilitada puede volver a usar un token anterior no vencido si no se revocó.
+
+Angular debe serializar renovaciones simultáneas y manejar 429 con `Retry-After`.
+Evitar enviar `Authorization` al renovar o cerrar sesión; esos endpoints autentican
+la sesión mediante la cookie y no necesitan el access token vencido.
+Ejemplos para el frontend: [docs/frontend-cookie-auth.md](docs/frontend-cookie-auth.md).
+El backend guarda únicamente el hash SHA-256 del token aleatorio. Cada renovación
+reinicia la duración configurada. No hay revocación de toda la familia ante reuso.
+
+Configurar `CORS_ORIGIN` con las URLs exactas del frontend, separadas por comas,
+sin ruta ni barra final; no se aceptan comodines. CORS permite credenciales y la
+cabecera CSRF. En producción mantener HTTPS y `REFRESH_COOKIE_SECURE=true` (valor
+predeterminado). Para desarrollo HTTP en localhost se puede establecer
+`REFRESH_COOKIE_SECURE=false`, que usa `SameSite=Lax`; usar el mismo hostname en
+frontend y backend. Los navegadores que bloquean cookies de terceros pueden impedir
+el refresh entre sitios distintos: verificar la configuración de ambos despliegues.
 
 Si una base existente todavía no tiene la tabla `refresh_tokens`, ejecutar manualmente
-[database/add-refresh-tokens.sql](database/add-refresh-tokens.sql) en Neon antes de
-arrancar. En la base de desarrollo de este proyecto la tabla ya se creó manualmente.
+[database/add-refresh-tokens.sql](database/add-refresh-tokens.sql) antes de arrancar.
 El esquema para una base nueva ya incluye la tabla.
 
 ### Administración y roles

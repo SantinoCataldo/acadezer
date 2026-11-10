@@ -33,15 +33,11 @@ export interface UserResponse {
 
 export interface AuthResponse {
   accessToken: string;
-  refreshToken: string;
   tokenType: 'Bearer';
   expiresIn: number;
   usuario: UserResponse;
 }
 
-export interface RefreshTokenRequest {
-  refreshToken: string;
-}
 
 export interface UserEnabledRequest {
   enabled: boolean;
