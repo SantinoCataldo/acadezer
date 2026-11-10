@@ -41,7 +41,10 @@ public class SecurityConfig {
             .map(String::trim).filter(value -> !value.isEmpty()).toList();
         if (origins.isEmpty() || origins.stream().anyMatch(value -> value.contains("*")))
             throw new IllegalArgumentException("CORS_ORIGIN debe contener orígenes explícitos");
-        c.setAllowedOrigins(origins);
+        // Preserve configured production origins while explicitly allowing local Angular.
+        List<String> allowed = java.util.stream.Stream.concat(origins.stream(), java.util.stream.Stream.of("http://localhost:4200"))
+            .distinct().toList();
+        c.setAllowedOrigins(allowed);
         c.setAllowCredentials(true);
         c.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
         c.setAllowedHeaders(List.of("Authorization", "Content-Type", "X-CSRF-Protection"));

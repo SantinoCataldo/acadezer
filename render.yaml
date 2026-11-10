@@ -29,7 +29,8 @@ services:
       - key: AI_TIMEOUT
         value: 20s
       - key: CORS_ORIGIN
-        value: http://localhost:4200
+        # Enter the existing production origin(s); sync:false preserves them on subsequent Blueprint syncs.
+        sync: false
       - key: LOGIN_ACCOUNT_LIMIT
         value: "10"
       - key: LOGIN_IP_LIMIT

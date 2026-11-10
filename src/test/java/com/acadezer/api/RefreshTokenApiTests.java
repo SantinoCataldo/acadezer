@@ -14,7 +14,7 @@ import static org.assertj.core.api.Assertions.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
-@SpringBootTest @AutoConfigureMockMvc @ActiveProfiles("test")
+@SpringBootTest(properties = "app.cors-origin=https://frontend.example") @AutoConfigureMockMvc @ActiveProfiles("test")
 class RefreshTokenApiTests {
     @Autowired MockMvc mvc;
     @Autowired UserRepository users;
@@ -52,10 +52,17 @@ class RefreshTokenApiTests {
         mvc.perform(refresh(token)).andExpect(status().isOk());
     }
     @Test void corsAllowsOnlyConfiguredOriginAndCredentials() throws Exception {
-        mvc.perform(options("/auth/refresh").header("Origin", "http://localhost:4200")
-            .header("Access-Control-Request-Method", "POST").header("Access-Control-Request-Headers", "X-CSRF-Protection"))
-            .andExpect(status().isOk()).andExpect(header().string("Access-Control-Allow-Origin", "http://localhost:4200"))
-            .andExpect(header().string("Access-Control-Allow-Credentials", "true"));
+        for (String origin : java.util.List.of("http://localhost:4200", "https://frontend.example")) {
+            for (String path : java.util.List.of("/auth", "/auth/refresh")) {
+                mvc.perform(options(path).header("Origin", origin)
+                    .header("Access-Control-Request-Method", "POST")
+                    .header("Access-Control-Request-Headers", "Content-Type, X-CSRF-Protection"))
+                    .andExpect(status().isOk()).andExpect(header().string("Access-Control-Allow-Origin", origin))
+                    .andExpect(header().string("Access-Control-Allow-Credentials", "true"))
+                    .andExpect(header().string("Access-Control-Allow-Headers", org.hamcrest.Matchers.containsStringIgnoringCase("content-type")))
+                    .andExpect(header().string("Access-Control-Allow-Headers", org.hamcrest.Matchers.containsStringIgnoringCase("x-csrf-protection")));
+            }
+        }
         mvc.perform(options("/auth/refresh").header("Origin", "https://evil.example")
             .header("Access-Control-Request-Method", "POST").header("Access-Control-Request-Headers", "X-CSRF-Protection"))
             .andExpect(status().isForbidden());
