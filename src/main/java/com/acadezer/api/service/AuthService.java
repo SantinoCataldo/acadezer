@@ -25,6 +25,7 @@ public class AuthService {
     private final UserMapper mapper;
     private final PasswordEncoder encoder;
     private final JwtService jwt;
+    private final RefreshTokenService refreshTokens;
     @Value("${jwt.expiration}")
     private long expiration;
 
@@ -44,13 +45,22 @@ public class AuthService {
         return mapper.toResponse(u);
     }
 
-    @Transactional(readOnly = true)
+    @Transactional
     public AuthResponse login(AuthRequest input) {
         UserEntity user = users.findByEmail(email(input.email()))
                 .orElseThrow(() -> new BadCredentialsException("Credenciales inválidas"));
         if (!user.isEnabled() || !encoder.matches(input.password(), user.getPassword()))
             throw new BadCredentialsException("Credenciales inválidas");
-        return new AuthResponse(jwt.generateToken(user), "Bearer", expiration / 1000, mapper.toResponse(user));
+        return response(user);
+    }
+
+    @Transactional
+    public AuthResponse refresh(String token) {
+        return response(refreshTokens.consume(token));
+    }
+
+    private AuthResponse response(UserEntity user) {
+        return new AuthResponse(jwt.generateToken(user), refreshTokens.issue(user), "Bearer", expiration / 1000, mapper.toResponse(user));
     }
 
     @Transactional(readOnly = true)

@@ -26,7 +26,7 @@ public class SecurityConfig {
                 res.getWriter().write(json.writeValueAsString(ErrorResponse.of(403, "Acceso denegado", req.getRequestURI())));
             }))
             .authorizeHttpRequests(a -> a
-                .requestMatchers(org.springframework.http.HttpMethod.POST, "/auth", "/auth/register").permitAll()
+                .requestMatchers(org.springframework.http.HttpMethod.POST, "/auth", "/auth/register", "/auth/refresh", "/auth/logout").permitAll()
                 .requestMatchers(org.springframework.http.HttpMethod.GET, "/health").permitAll()
                 .requestMatchers("/api/admin/**").hasRole("ADMIN")
                 .anyRequest().authenticated())

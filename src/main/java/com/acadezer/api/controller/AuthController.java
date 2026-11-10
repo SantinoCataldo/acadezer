@@ -2,6 +2,7 @@ package com.acadezer.api.controller;
 
 import com.acadezer.api.dto.request.RegisterRequest;
 import com.acadezer.api.dto.request.AuthRequest;
+import com.acadezer.api.dto.request.RefreshTokenRequest;
 import com.acadezer.api.dto.response.UserResponse;
 import com.acadezer.api.dto.response.AuthResponse;
 import com.acadezer.api.service.AuthService;
@@ -17,6 +18,7 @@ import org.springframework.web.bind.annotation.*;
 public class AuthController {
     private final AuthService auth;
     private final AuthRequestLimiter limits;
+    private final com.acadezer.api.service.RefreshTokenService refreshTokens;
 
     @GetMapping("/me")
     public UserResponse currentUser(java.security.Principal principal) {
@@ -33,5 +35,16 @@ public class AuthController {
     public AuthResponse login(@Valid @RequestBody AuthRequest input) {
         limits.loginAccount(input.email());
         return auth.login(input);
+    }
+
+    @PostMapping("/refresh")
+    public AuthResponse refresh(@Valid @RequestBody RefreshTokenRequest input) {
+        return auth.refresh(input.refreshToken());
+    }
+
+    @PostMapping("/logout")
+    public ResponseEntity<Void> logout(@Valid @RequestBody RefreshTokenRequest input) {
+        refreshTokens.revoke(input.refreshToken());
+        return ResponseEntity.noContent().build();
     }
 }

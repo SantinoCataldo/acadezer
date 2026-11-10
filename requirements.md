@@ -21,6 +21,7 @@
 19. IA con cuota por usuario y concurrencia limitada por usuario e instancia, verificadas después de autenticar y comprobar propiedad y antes de llamar al proveedor.
 20. Liberación de permisos de IA ante éxito, errores o timeout; 429 sin llamada al proveedor cuando no hay cupo.
 21. Controles en memoria acotada: se documenta su reinicio con el proceso y su independencia entre instancias, sin cambios de esquema en Neon.
+22. Refresh tokens opacos, almacenados como hash, con vencimiento, rotación de un solo uso y revocación al cerrar sesión.
 
 Arquitectura sencilla de controlador, servicio y repositorio, con DTO y JPA.
 Base de desarrollo separada del ATS y credenciales externas al repositorio.

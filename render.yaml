@@ -20,6 +20,8 @@ services:
         sync: false
       - key: JWT_EXPIRATION_MS
         value: "3600000"
+      - key: JWT_REFRESH_EXPIRATION_MS
+        value: "604800000"
       - key: AI_API_KEY
         sync: false
       - key: AI_MODEL

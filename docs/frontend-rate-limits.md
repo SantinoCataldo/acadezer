@@ -5,7 +5,7 @@ Las rutas y las respuestas exitosas no cambian. No hace falta cambiar los DTO.
 
 ## Manejar HTTP 429
 
-Aplica a `POST /auth`, `POST /auth/register` y
+Aplica a `POST /auth`, `POST /auth/register`, `POST /auth/refresh`, `POST /auth/logout` y
 `POST /api/apuntes/{id}/preguntas`.
 
 - Leer `Retry-After` de las cabeceras de la respuesta: son segundos enteros positivos.

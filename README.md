@@ -14,6 +14,7 @@ a una sola materia y, a través de ella, a un solo usuario.
 ```mermaid
 erDiagram
     usuarios ||--o{ materias : posee
+    usuarios ||--o{ refresh_tokens : mantiene
     materias ||--o{ apuntes : contiene
     materias ||--o{ pendientes : organiza
     materias ||--o{ evaluaciones : registra
@@ -26,6 +27,12 @@ erDiagram
         varchar password "Hash BCrypt"
         varchar role "STUDENT o ADMIN"
         boolean enabled "Inicialmente true"
+    }
+
+    refresh_tokens {
+        varchar token_hash PK
+        bigint usuario_id FK
+        timestamp expires_at
     }
 
     materias {
@@ -113,8 +120,8 @@ clave JWT estable entre reinicios si se quieren conservar los tokens vigentes.
 
 La API escucha en `http://localhost:8080`; CORS admite Angular en
 `http://localhost:4200`. JPA usa **validate**: el arranque comprueba el esquema sin
-modificarlo. Se comprobó que la nueva base Neon estaba vacía y se crearon sus seis
-tablas mediante `database/academic-postgres.sql`, sin DROP ni migración del ATS.
+modificarlo. Se comprobó que la nueva base Neon estaba vacía y se crearon sus tablas
+académicas iniciales mediante `database/academic-postgres.sql`, sin DROP ni migración del ATS.
 No hace falta volver a ejecutar el script en esa base.
 
 El archivo local está ignorado por Git y **excluido del JAR**. Spring lo carga desde
@@ -214,6 +221,7 @@ se comprueban con las pruebas locales.
 |---|---|
 | `JWT_SECRET` | Obligatoria fuera de `local`; en `local` ya existe `jwt.secret` privado |
 | `JWT_EXPIRATION_MS` | `3600000` (una hora) |
+| `JWT_REFRESH_EXPIRATION_MS` | `604800000` (siete días), duración del refresh token |
 | `PORT` | `8080` |
 | `CORS_ORIGIN` | `http://localhost:4200`, un único origen Angular permitido |
 | `SPRING_PROFILES_ACTIVE` | Ausente: `local`; alternativas: `dev`, `postgres` |
@@ -238,7 +246,7 @@ está ignorado, pero Spring no lo carga automáticamente.
 
 ## Autenticación y contratos para Angular
 
-Todos los cuerpos y respuestas usan JSON. Registro, login y `GET /health` son públicos.
+Todos los cuerpos y respuestas usan JSON. Registro, login, refresh, logout y `GET /health` son públicos.
 Para el resto enviar `Authorization: Bearer <accessToken>`.
 
 ### Límites de autenticación y de IA
@@ -373,16 +381,40 @@ Respuesta:
 Respuesta:
 
 ```json
-{"accessToken":"<JWT>","tokenType":"Bearer","expiresIn":3600,"usuario":{"id":1,"nombre":"Ana Pérez","email":"ana@example.com","role":"STUDENT","enabled":true}}
+{"accessToken":"<JWT>","refreshToken":"<TOKEN_OPACO>","tokenType":"Bearer","expiresIn":3600,"usuario":{"id":1,"nombre":"Ana Pérez","email":"ana@example.com","role":"STUDENT","enabled":true}}
 ```
 
 Emails normalizados a minúsculas y sin espacios en los extremos, únicos también
 en la base. Contraseña BCrypt, entre 8 y 72 caracteres y hasta 72 bytes UTF-8.
 Roles: `STUDENT` y `ADMIN`. El registro público siempre crea estudiantes habilitados;
-no acepta `role` ni `enabled`. Al vencer el JWT se vuelve a iniciar
-sesión; no se conserva el flujo de refresh defectuoso del ATS. Para cerrar sesión
-el cliente descarta el token. No hay endpoint de logout que revoque JWT; bloquear
-la cuenta suspende también el uso de los tokens ya emitidos, como se explica abajo.
+no acepta `role` ni `enabled`. El login entrega un access token y un refresh token.
+
+#### Renovar y cerrar sesión
+
+`POST /auth/refresh` recibe `{"refreshToken":"<TOKEN_OPACO>"}` y devuelve el mismo
+formato del login, con un access token y **un refresh token nuevo**. El anterior se
+consume en una transacción y no puede volver a utilizarse; solicitudes simultáneas
+con el mismo token no pueden renovarlo dos veces. Un token inválido, vencido, ya
+usado o de una cuenta deshabilitada devuelve 401. El refresh se limita por IP con
+la misma ventana de login y puede devolver 429 con `Retry-After`.
+
+`POST /auth/logout` recibe el mismo JSON y devuelve 204; revoca ese refresh token.
+El access token ya emitido sigue válido hasta su vencimiento salvo que la cuenta se
+deshabilite. Cada login crea una sesión independiente. Al reactivar una cuenta, un
+refresh token anterior no vencido puede volver a funcionar si no se revocó.
+
+Los refresh tokens son aleatorios de 256 bits; solo se guarda su hash SHA-256 en
+Neon. Cada renovación reinicia la duración configurada y los tokens vencidos se
+eliminan al emitir uno nuevo. El cliente debe conservar el token como credencial
+secreta, reemplazarlo inmediatamente al renovar y serializar las renovaciones para
+que varias peticiones no consuman el mismo token a la vez. Esta versión lo entrega
+en JSON: no implementa cookie HttpOnly ni revocación automática de toda la familia
+ante reutilización. No registrar tokens en logs ni enviarlos como Bearer.
+
+Si una base existente todavía no tiene la tabla `refresh_tokens`, ejecutar manualmente
+[database/add-refresh-tokens.sql](database/add-refresh-tokens.sql) en Neon antes de
+arrancar. En la base de desarrollo de este proyecto la tabla ya se creó manualmente.
+El esquema para una base nueva ya incluye la tabla.
 
 ### Administración y roles
 
@@ -668,8 +700,8 @@ El historial Git anterior se conserva como base reutilizada del ATS.
 Reemplazado: empresas, candidatos, reclutadores, skills, ofertas y postulaciones
 por el dominio académico. Se quitaron los roles y permisos propios del ATS y su
 administración; se agregaron los roles académicos STUDENT/ADMIN. Se quitó la carga y lectura
-de PDF, análisis de CV y refresh tokens (el flujo anterior no guardaba el refresh
-emitido y no distinguía adecuadamente su uso del token de acceso). El filtro ahora
+de PDF y análisis de CV. El flujo de refresh anterior se reemplazó: ahora guarda
+un hash, rota el token y distingue su uso del token de acceso. El filtro ahora
 responde 401 ante JWT malformado, vencido o de otra clase.
 
 Se retiraron PDFBox y Spring AI: una única llamada HTTP explícita permite arrancar
@@ -691,6 +723,10 @@ Fuera de alcance: archivos, multimedia, chat, grupos,
 docentes, notificaciones, calendarios y sistemas de la facultad.
 
 ## Comprobaciones
+
+Refresh token: 72 pruebas de la suite sin fallos y 3 pruebas específicas de
+renovación sin fallos, incluida una prueba de uso simultáneo. Se usó H2, sin
+llamadas a Neon ni al proveedor real durante las pruebas.
 
 Revisión de seguridad del 9 de noviembre de 2026: `./mvnw.cmd -o -q verify`,
 **70 pruebas aprobadas**, sin fallos, errores ni pruebas omitidas, y JAR generado.

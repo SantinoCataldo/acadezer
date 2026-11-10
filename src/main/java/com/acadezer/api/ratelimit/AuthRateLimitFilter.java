@@ -30,7 +30,7 @@ public class AuthRateLimitFilter extends OncePerRequestFilter {
             // MockMvc may leave servletPath empty; both are container-parsed paths.
             if (path.isEmpty()) path = request.getRequestURI().substring(request.getContextPath().length());
             try {
-                if ("/auth".equals(path)) limits.loginIp(ips.resolve(request));
+                if ("/auth".equals(path) || "/auth/refresh".equals(path) || "/auth/logout".equals(path)) limits.loginIp(ips.resolve(request));
                 else if ("/auth/register".equals(path)) limits.registerIp(ips.resolve(request));
             } catch (RateLimitExceededException ex) {
                 response.setStatus(429);
