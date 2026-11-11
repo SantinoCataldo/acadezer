@@ -551,7 +551,8 @@ afectan otras materias. Un ID inexistente o de otro estudiante devuelve el mismo
 
 `periodo` es un atajo de Angular (trimestral, cuatrimestral o anual), no un campo
 persistido ni aceptado en JSON. Angular calcula una fecha de fin aproximada; ambas
-fechas se pueden ajustar antes de guardar. `fechaInicio` es obligatoria; `fechaFin`
+fechas se pueden ajustar antes de guardar. `fechaInicio` es obligatoria al crear o
+editar, pero no limita consultas ni controles retroactivos; `fechaFin`
 puede ser `null` para una materia activa y, si tiene valor, no puede preceder al inicio.
 La acción `PATCH /api/materias/{id}/finalizar` asigna la fecha actual de
 `America/Argentina/Buenos_Aires` y devuelve la materia actualizada. `horarios` es una lista
@@ -562,9 +563,10 @@ admite uno o dos controles. No se envía ni se devuelve un porcentaje mínimo.
 
 En PUT enviar el `id` de cada horario que se mantiene y omitirlo para uno nuevo.
 Quitar un horario sin controles lo elimina; un horario con controles guardados no
-puede modificarse ni eliminarse (409). Las fechas se pueden cambiar siempre que no
-dejen controles guardados fuera del rango (409). Para modificar un horario con
-controles primero deben eliminarse explícitamente esos controles.
+puede modificarse ni eliminarse (409). `fechaInicio` no restringe el calendario ni
+la carga de asistencias históricas. `fechaFin`, cuando existe, sí limita el último
+día de cursada; cambiarlo se rechaza (409) si deja controles posteriores al fin.
+Para modificar un horario con controles primero deben eliminarse explícitamente esos controles.
 
 | Método | Ruta | Resultado |
 |---|---|---|
@@ -575,8 +577,10 @@ controles primero deben eliminarse explícitamente esos controles.
 | PUT / DELETE | `/api/materias/{materiaId}/fechas-sin-cursada/{fecha}` | Excluir / volver a incluir una fecha completa |
 
 PUT de control: `{"estado":"PRESENTE"}`. También se acepta `AUSENTE` o `JUSTIFICADA`.
-La fecha debe corresponder al día del horario y estar dentro de la materia; el
-número es 1 o 2 según el horario. Cada combinación horario/fecha/número es única.
+La fecha debe corresponder al día del horario y no ser posterior a `fechaFin`; en
+materias activas el tope es hoy en `America/Argentina/Buenos_Aires`. Se aceptan fechas
+pasadas anteriores a `fechaInicio` o a la creación de la materia. El número es 1 o 2
+según el horario. Cada combinación horario/fecha/número es única.
 Una fecha marcada sin cursada no permite marcar controles; las marcas previas se
 conservan y vuelven a aparecer si se elimina la exclusión.
 
@@ -592,8 +596,9 @@ no marcados figuran como `PENDIENTE` y se excluyen del denominador: porcentaje =
 `presentes / (presentes + ausentes + justificadas) * 100`, redondeado a dos decimales.
 Sin controles marcados, el porcentaje es `null`. Se consideran solo los controles
 marcados del rango consultado; en materias activas, los controles previstos se limitan
-hasta hoy aunque `hasta` sea posterior. Las fechas sin horario o excluidas no generan
-controles. Las consultas de rango aceptan como máximo 366 días; se pueden consultar
+hasta hoy aunque `hasta` sea posterior. En materias finalizadas, el calendario se
+limita a `fechaFin`, pero conserva los controles anteriores. Las fechas sin horario
+o excluidas no generan controles. Las consultas de rango aceptan como máximo 366 días; se pueden consultar
 varios rangos para períodos más largos.
 
 **Base existente:** aplicar manualmente [database/add-schedules-and-controls.sql](database/add-schedules-and-controls.sql)

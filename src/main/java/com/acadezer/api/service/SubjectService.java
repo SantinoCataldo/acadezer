@@ -55,11 +55,8 @@ public class SubjectService {
     public SubjectResponse update(Long id, SubjectRequest request, String email) {
         SubjectEntity entity = owned(id, email);
         validate(request);
-        long outsideControls = request.fechaFin() == null
-            ? controls.countBeforeDate(id, request.fechaInicio())
-            : controls.countOutsideDates(id, request.fechaInicio(), request.fechaFin());
-        if (outsideControls > 0)
-            throw new ApiException(409, "Las fechas dejarían controles registrados fuera de la materia");
+        if (request.fechaFin() != null && controls.countAfterDate(id, request.fechaFin()) > 0)
+            throw new ApiException(409, "La fecha de fin dejaría controles registrados posteriores a la cursada");
         applySchedules(entity, request.horarios());
         mapper.updateEntity(entity, request);
         return mapper.toResponse(entity);
@@ -70,13 +67,9 @@ public class SubjectService {
         SubjectEntity entity = owned(id, email);
         if (entity.getFechaFin() != null)
             throw new ApiException(409, "La materia ya está finalizada");
-        if (entity.getFechaInicio() == null)
-            throw new ApiException(409, "Configure la fecha de inicio antes de finalizar la materia");
         LocalDate today = LocalDate.now(ZoneId.of("America/Argentina/Buenos_Aires"));
-        if (today.isBefore(entity.getFechaInicio()))
-            throw new ApiException(409, "No se puede finalizar una materia antes de su fecha de inicio");
-        if (controls.countOutsideDates(id, entity.getFechaInicio(), today) > 0)
-            throw new ApiException(409, "Hay controles registrados fuera del rango de la materia");
+        if (controls.countAfterDate(id, today) > 0)
+            throw new ApiException(409, "Hay controles registrados posteriores a hoy");
         entity.setFechaFin(today);
         return mapper.toResponse(entity);
     }

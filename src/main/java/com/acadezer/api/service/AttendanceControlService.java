@@ -23,10 +23,7 @@ public class AttendanceControlService {
     private final ExcludedDateRepository excludedDates;
 
     private SubjectEntity subject(Long id, String email) {
-        SubjectEntity subject = subjects.owned(id, email);
-        if (subject.getFechaInicio() == null)
-            throw new ApiException(409, "Configure la fecha de inicio antes de usar los controles");
-        return subject;
+        return subjects.owned(id, email);
     }
     private ScheduleEntity schedule(Long subjectId, Long scheduleId, String email) {
         return schedules.findByIdAndMateriaIdAndMateriaUsuarioEmail(scheduleId, subjectId, email).orElseThrow(ApiException::notFound);
@@ -35,7 +32,7 @@ public class AttendanceControlService {
         LocalDate end = subject.getFechaFin() == null
             ? LocalDate.now(ZoneId.of("America/Argentina/Buenos_Aires"))
             : subject.getFechaFin();
-        if (fecha.isBefore(subject.getFechaInicio()) || fecha.isAfter(end) || Weekday.from(fecha.getDayOfWeek()) != schedule.getDiaSemana())
+        if (fecha.isAfter(end) || Weekday.from(fecha.getDayOfWeek()) != schedule.getDiaSemana())
             throw new ApiException(400, "La fecha no corresponde a una clase del horario");
         if (numero < 1 || numero > schedule.getControlesAsistencia()) throw new ApiException(400, "Número de control inválido para el horario");
         if (excludedDates.findByMateriaIdAndFecha(subject.getId(), fecha).isPresent()) throw new ApiException(409, "La fecha está marcada sin cursada");
@@ -59,7 +56,7 @@ public class AttendanceControlService {
     @Transactional
     public void exclude(Long subjectId, LocalDate fecha, String email) {
         SubjectEntity subject = subject(subjectId, email);
-        if (fecha.isBefore(subject.getFechaInicio()) || (subject.getFechaFin() != null && fecha.isAfter(subject.getFechaFin())))
+        if (subject.getFechaFin() != null && fecha.isAfter(subject.getFechaFin()))
             throw new ApiException(400, "La fecha está fuera de la materia");
         if (excludedDates.findByMateriaIdAndFecha(subjectId, fecha).isEmpty()) {
             ExcludedDateEntity excluded = new ExcludedDateEntity(); excluded.setMateria(subject); excluded.setFecha(fecha); excludedDates.saveAndFlush(excluded);
@@ -80,12 +77,11 @@ public class AttendanceControlService {
         var recorded = new HashMap<String, AttendanceControlEntity>();
         for (var item : controls.findByHorarioMateriaIdAndFechaBetween(subjectId, desde, hasta)) recorded.put(key(item.getHorario().getId(), item.getFecha(), item.getNumero()), item);
         List<AttendanceControlResponse> result = new ArrayList<>();
-        LocalDate start = desde.isBefore(subject.getFechaInicio()) ? subject.getFechaInicio() : desde;
         LocalDate subjectEnd = subject.getFechaFin() == null
             ? LocalDate.now(ZoneId.of("America/Argentina/Buenos_Aires"))
             : subject.getFechaFin();
         LocalDate end = hasta.isAfter(subjectEnd) ? subjectEnd : hasta;
-        for (LocalDate date = start; !date.isAfter(end); date = date.plusDays(1)) {
+        for (LocalDate date = desde; !date.isAfter(end); date = date.plusDays(1)) {
             if (notHeld.contains(date)) continue;
             for (ScheduleEntity schedule : subject.getHorarios()) {
                 if (Weekday.from(date.getDayOfWeek()) != schedule.getDiaSemana()) continue;

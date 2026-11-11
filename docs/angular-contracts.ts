@@ -57,7 +57,9 @@ export interface AdminStatsResponse {
 
 export interface SubjectRequest {
   nombre: string;
+  /** Required for create/update; informational and not a lower bound for attendance history. */
   fechaInicio: LocalDate;
+  /** Null means active; after this date attendance controls are unavailable. */
   fechaFin: LocalDate | null;
   horarios: ScheduleRequest[];
 }
@@ -65,7 +67,9 @@ export interface SubjectRequest {
 export interface SubjectResponse {
   id: number;
   nombre: string;
+  /** Historical controls can be before this date. */
   fechaInicio: LocalDate | null;
+  /** Null means active. */
   fechaFin: LocalDate | null;
   horarios: ScheduleResponse[];
 }
