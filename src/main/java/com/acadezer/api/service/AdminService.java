@@ -23,6 +23,7 @@ public class AdminService {
     private final TaskRepository tasks;
     private final ExamRepository exams;
     private final AttendanceRepository attendance;
+    private final AttendanceControlRepository controls;
 
     public List<UserResponse> listUsers() {
         return users.findAll(Sort.by("id")).stream().map(mapper::toResponse).toList();
@@ -41,6 +42,6 @@ public class AdminService {
     public AdminStatsResponse stats() {
         return new AdminStatsResponse(users.count(), users.countByEnabledTrue(),
             users.countByRole(UserRole.STUDENT), users.countByRole(UserRole.ADMIN),
-            subjects.count(), notes.count(), tasks.count(), exams.count(), attendance.count());
+            subjects.count(), notes.count(), tasks.count(), exams.count(), attendance.count() + controls.count());
     }
 }

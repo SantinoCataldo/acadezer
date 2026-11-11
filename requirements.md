@@ -6,7 +6,7 @@
 4. Listados por materia; consultas por ID con verificación de propiedad.
 5. Pendientes inicialmente incompletos, marcado/desmarcado y consulta por rango de fechas.
 6. Evaluaciones con fecha obligatoria y calificación opcional, de 0 a 10 con dos decimales.
-7. Asistencia PRESENTE/AUSENTE/JUSTIFICADA, única por materia y fecha.
+7. Asistencia por horario, fecha y bloque; PRESENTE/AUSENTE/JUSTIFICADA, con controles no marcados pendientes y fechas sin cursada excluidas.
 8. Borrado de materia y su contenido en una transacción, documentado para confirmación del frontend.
 9. Cinco preguntas y respuestas desde un apunte propio guardado, una llamada de texto a IA.
 10. Sin credenciales, el CRUD funciona y la IA informa que no está configurada; sin simulación.
@@ -25,8 +25,11 @@
 
 Arquitectura sencilla de controlador, servicio y repositorio, con DTO y JPA.
 Base de desarrollo separada del ATS y credenciales externas al repositorio.
-Sin reglas de aprobación/promoción/asistencia mínima, PDF, imágenes,
+Sin reglas de aprobación/promoción de evaluaciones, PDF, imágenes,
 audio, video, chat, grupos, docentes, notificaciones ni integraciones de calendarios.
 No se implementan resúmenes de apuntes, acceso con Google ni correos con Resend
 en esta entrega. La IA genera únicamente preguntas de práctica con respuestas.
 Contratos, ejemplos y limitaciones detallados en [README.md](README.md).
+
+23. Materias con fechas, porcentaje mínimo por defecto 75 y horarios semanales con uno o dos controles. Los períodos son atajos del frontend y no se guardan.
+24. Cada bloque vale una unidad; justificadas cuentan como faltas, pendientes se muestran sin imputar y no entran al denominador.

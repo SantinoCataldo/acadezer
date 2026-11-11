@@ -57,13 +57,50 @@ export interface AdminStatsResponse {
 
 export interface SubjectRequest {
   nombre: string;
-  descripcion?: string | null;
+  fechaInicio: LocalDate;
+  fechaFin: LocalDate;
+  porcentajeAsistenciaMinima?: number | null;
+  horarios: ScheduleRequest[];
 }
 
 export interface SubjectResponse {
   id: number;
   nombre: string;
-  descripcion: string | null;
+  fechaInicio: LocalDate | null;
+  fechaFin: LocalDate | null;
+  porcentajeAsistenciaMinima: number;
+  horarios: ScheduleResponse[];
+}
+
+export type Weekday = 'LUNES' | 'MARTES' | 'MIERCOLES' | 'JUEVES' | 'VIERNES' | 'SABADO' | 'DOMINGO';
+export interface ScheduleRequest {
+  id?: number | null;
+  diaSemana: Weekday;
+  horaInicio: string;
+  horaFin: string;
+  controlesAsistencia: 1 | 2;
+}
+export interface ScheduleResponse extends ScheduleRequest { id: number; }
+export interface AttendanceControlRequest { estado: AttendanceStatus; }
+export interface AttendanceControlResponse {
+  id: number | null;
+  horarioId: number;
+  fecha: LocalDate;
+  numero: number;
+  horaInicio: string;
+  horaFin: string;
+  estado: AttendanceStatus | 'PENDIENTE';
+}
+export interface AttendanceSummaryResponse {
+  presentes: number;
+  ausentes: number;
+  justificadas: number;
+  pendientes: number;
+  controlesMarcados: number;
+  porcentajeAsistencia: number | null;
+  porcentajeAsistenciaMinima: number;
+  cumpleMinimo: boolean | null;
+  controles: AttendanceControlResponse[];
 }
 
 export interface NoteRequest {

@@ -107,7 +107,7 @@ class AdminApiTests {
     }
 
     @Test void adminRoleDoesNotBypassAcademicPrivacy() throws Exception {
-        long subject = call("POST", "/api/materias", "{\"nombre\":\"Privada\"}", student.token(), 201).path("id").asLong();
+        long subject = call("POST", "/api/materias", "{\"nombre\":\"Privada\",\"fechaInicio\":\"2026-01-01\",\"fechaFin\":\"2026-12-31\",\"horarios\":[]}", student.token(), 201).path("id").asLong();
         long note = call("POST", "/api/materias/" + subject + "/apuntes",
             "{\"titulo\":\"Privado\",\"contenido\":\"Texto personal\"}", student.token(), 201).path("id").asLong();
         call("GET", "/api/materias/" + subject, null, admin.token(), 404);

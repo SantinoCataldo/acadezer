@@ -80,7 +80,7 @@ class RequestLimitsApiTests {
         String email = UUID.randomUUID() + "@example.com";
         call("POST", "/auth/register", "{\"nombre\":\"Estudiante\",\"email\":\"" + email + "\",\"password\":\"password123\"}", null, ip(), null, 201);
         String token = body(call("POST", "/auth", login(email), null, ip(), null, 200)).path("accessToken").asText();
-        long subject = body(call("POST", "/api/materias", "{\"nombre\":\"Materia\"}", token, ip(), null, 201)).path("id").asLong();
+        long subject = body(call("POST", "/api/materias", "{\"nombre\":\"Materia\",\"fechaInicio\":\"2026-01-01\",\"fechaFin\":\"2026-12-31\",\"horarios\":[]}", token, ip(), null, 201)).path("id").asLong();
         long note = body(call("POST", "/api/materias/" + subject + "/apuntes",
             "{\"titulo\":\"Apunte\",\"contenido\":\"Contenido de prueba sin proveedor real\"}", token, ip(), null, 201)).path("id").asLong();
         return new Account(email, token, note);

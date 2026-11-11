@@ -35,7 +35,7 @@ class AcademicApiTests {
 
     @BeforeEach void accounts() throws Exception {
         alice = account(); bob = account();
-        materia = call("POST", "/api/materias", "{\"nombre\":\"Análisis\"}", alice, 201).path("id").asLong();
+        materia = call("POST", "/api/materias", "{\"nombre\":\"Análisis\",\"fechaInicio\":\"2026-01-01\",\"fechaFin\":\"2026-12-31\",\"horarios\":[]}", alice, 201).path("id").asLong();
     }
 
     private String account() throws Exception {
@@ -73,11 +73,11 @@ class AcademicApiTests {
         String path = "/api/materias/" + materia;
         assertThat(call("GET", "/api/materias", null, bob, 200).size()).isZero();
         call("GET", path, null, bob, 404);
-        call("PUT", path, "{\"nombre\":\"Robada\"}", bob, 404);
+        call("PUT", path, "{\"nombre\":\"Robada\",\"fechaInicio\":\"2026-01-01\",\"fechaFin\":\"2026-12-31\",\"horarios\":[]}", bob, 404);
         call("DELETE", path, null, bob, 404);
-        call("POST", "/api/materias", "{\"nombre\":\" \"}", alice, 400);
-        call("POST", "/api/materias", "{\"nombre\":\"Otra\",\"usuarioId\":1}", alice, 400);
-        call("PUT", path, "{\"nombre\":\"Álgebra\",\"descripcion\":\"Matrices\"}", alice, 200);
+        call("POST", "/api/materias", "{\"nombre\":\" \",\"fechaInicio\":\"2026-01-01\",\"fechaFin\":\"2026-12-31\",\"horarios\":[]}", alice, 400);
+        call("POST", "/api/materias", "{\"nombre\":\"Otra\",\"fechaInicio\":\"2026-01-01\",\"fechaFin\":\"2026-12-31\",\"horarios\":[],\"usuarioId\":1}", alice, 400);
+        call("PUT", path, "{\"nombre\":\"Álgebra\",\"fechaInicio\":\"2026-01-01\",\"fechaFin\":\"2026-12-31\",\"horarios\":[]}", alice, 200);
         assertThat(call("GET", path, null, alice, 200).path("nombre").asText()).isEqualTo("Álgebra");
         call("DELETE", path, null, alice, 204);
         call("GET", path, null, alice, 404);
@@ -146,7 +146,7 @@ class AcademicApiTests {
         duplicate.setMateria(materias.findById(materia).orElseThrow());
         duplicate.setFecha(LocalDate.of(2026, 11, 10)); duplicate.setEstado(AttendanceStatus.AUSENTE);
         assertThatThrownBy(() -> asistencias.saveAndFlush(duplicate)).isInstanceOf(org.springframework.dao.DataIntegrityViolationException.class);
-        long other = call("POST", "/api/materias", "{\"nombre\":\"Física\"}", alice, 201).path("id").asLong();
+        long other = call("POST", "/api/materias", "{\"nombre\":\"Física\",\"fechaInicio\":\"2026-01-01\",\"fechaFin\":\"2026-12-31\",\"horarios\":[]}", alice, 201).path("id").asLong();
         call("POST", "/api/materias/" + other + "/asistencias", body, alice, 201);
     }
 
@@ -196,7 +196,7 @@ class AcademicApiTests {
     }
 
     @Test void deleteMatterCascadesAllChildrenButPreservesOtherMatter() throws Exception {
-        long other = call("POST", "/api/materias", "{\"nombre\":\"Otra\"}", bob, 201).path("id").asLong();
+        long other = call("POST", "/api/materias", "{\"nombre\":\"Otra\",\"fechaInicio\":\"2026-01-01\",\"fechaFin\":\"2026-12-31\",\"horarios\":[]}", bob, 201).path("id").asLong();
         for (String resource : new String[]{"apuntes", "pendientes", "evaluaciones", "asistencias"}) {
             call("POST", "/api/materias/" + materia + "/" + resource, payload(resource), alice, 201);
             call("POST", "/api/materias/" + other + "/" + resource, payload(resource), bob, 201);

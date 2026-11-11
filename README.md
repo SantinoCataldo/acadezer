@@ -19,6 +19,9 @@ erDiagram
     materias ||--o{ pendientes : organiza
     materias ||--o{ evaluaciones : registra
     materias ||--o{ asistencias : registra
+    materias ||--o{ horarios : programa
+    horarios ||--o{ controles_asistencia : contiene
+    materias ||--o{ fechas_sin_cursada : excluye
 
     usuarios {
         bigint id PK
@@ -38,8 +41,33 @@ erDiagram
     materias {
         bigint id PK
         varchar nombre
-        varchar descripcion "Opcional"
+        date fecha_inicio "Opcional en registros anteriores"
+        date fecha_fin "Opcional en registros anteriores"
+        numeric porcentaje_asistencia_minima "Inicialmente 75"
         bigint usuario_id FK
+    }
+
+    horarios {
+        bigint id PK
+        bigint materia_id FK
+        varchar dia_semana
+        time hora_inicio
+        time hora_fin
+        int controles_asistencia "1 o 2"
+    }
+
+    controles_asistencia {
+        bigint id PK
+        bigint horario_id FK
+        date fecha
+        int numero
+        varchar estado "PRESENTE, AUSENTE o JUSTIFICADA"
+    }
+
+    fechas_sin_cursada {
+        bigint id PK
+        bigint materia_id FK
+        date fecha
     }
 
     apuntes {
@@ -503,20 +531,76 @@ a cargo de quien administra la base; no se crea ninguna cuenta ni contraseña po
 POST/PUT:
 
 ```json
-{"nombre":"Análisis Matemático","descripcion":"Primer año"}
+{"nombre":"Análisis Matemático","fechaInicio":"2026-03-01","fechaFin":"2026-07-31","porcentajeAsistenciaMinima":75,"horarios":[{"diaSemana":"LUNES","horaInicio":"08:00","horaFin":"12:00","controlesAsistencia":2}]}
 ```
 
 Respuesta:
 
 ```json
-{"id":1,"nombre":"Análisis Matemático","descripcion":"Primer año"}
+{"id":1,"nombre":"Análisis Matemático","fechaInicio":"2026-03-01","fechaFin":"2026-07-31","porcentajeAsistenciaMinima":75,"horarios":[{"id":1,"diaSemana":"LUNES","horaInicio":"08:00:00","horaFin":"12:00:00","controlesAsistencia":2}]}
 ```
 
 **Borrar una materia elimina todos sus apuntes, pendientes, evaluaciones y
-asistencias en una transacción, sin recuperación.** Angular debe pedir confirmación
+asistencias, horarios, controles y fechas excluidas en una transacción, sin recuperación.** Angular debe pedir confirmación
 explicando ese alcance antes de llamar a DELETE. No se elimina el usuario ni se
 afectan otras materias. Un ID inexistente o de otro estudiante devuelve el mismo
 404 para evitar revelar datos ajenos.
+
+### Horarios y controles de asistencia
+
+`periodo` es un atajo de Angular (trimestral, cuatrimestral o anual), no un campo
+persistido ni aceptado en JSON. Angular calcula una fecha de fin aproximada; ambas
+fechas se pueden ajustar antes de guardar. `fechaInicio` y `fechaFin` son obligatorias
+en creación/edición y el fin no puede preceder al inicio. `horarios` es una lista
+obligatoria (puede estar vacía). `diaSemana`: `LUNES`, `MARTES`, `MIERCOLES`,
+`JUEVES`, `VIERNES`, `SABADO`, `DOMINGO`. Las horas tienen formato `HH:mm` y fin
+posterior a inicio; horarios de un mismo día no pueden superponerse. Cada horario
+admite uno o dos controles. El mínimo admite valores de 0 a 100 con hasta dos
+decimales; omitido o `null` toma 75.
+
+En PUT enviar el `id` de cada horario que se mantiene y omitirlo para uno nuevo.
+Quitar un horario sin controles lo elimina; un horario con controles guardados no
+puede modificarse ni eliminarse (409). Las fechas se pueden cambiar siempre que no
+dejen controles guardados fuera del rango (409). Para modificar un horario con
+controles primero deben eliminarse explícitamente esos controles.
+
+| Método | Ruta | Resultado |
+|---|---|---|
+| GET | `/api/materias/{materiaId}/controles-asistencia?desde=2026-03-02&hasta=2026-03-02` | Resumen y controles previstos del rango |
+| PUT | `/api/materias/{materiaId}/horarios/{horarioId}/controles/{fecha}/{numero}` | Crear o actualizar un control |
+| DELETE | `/api/materias/{materiaId}/horarios/{horarioId}/controles/{fecha}/{numero}` | Eliminar el registro y volverlo pendiente |
+| GET | `/api/materias/{materiaId}/fechas-sin-cursada?desde=2026-03-01&hasta=2026-07-31` | Listar exclusiones |
+| PUT / DELETE | `/api/materias/{materiaId}/fechas-sin-cursada/{fecha}` | Excluir / volver a incluir una fecha completa |
+
+PUT de control: `{"estado":"PRESENTE"}`. También se acepta `AUSENTE` o `JUSTIFICADA`.
+La fecha debe corresponder al día del horario y estar dentro de la materia; el
+número es 1 o 2 según el horario. Cada combinación horario/fecha/número es única.
+Una fecha marcada sin cursada no permite marcar controles; las marcas previas se
+conservan y vuelven a aparecer si se elimina la exclusión.
+
+Ejemplo de respuesta del GET para una clase de 08:00 a 12:00 con dos controles:
+
+```json
+{"presentes":1,"ausentes":1,"justificadas":0,"pendientes":0,"controlesMarcados":2,"porcentajeAsistencia":50.00,"porcentajeAsistenciaMinima":75.00,"cumpleMinimo":false,"controles":[{"id":1,"horarioId":1,"fecha":"2026-03-02","numero":1,"horaInicio":"08:00:00","horaFin":"10:00:00","estado":"PRESENTE"},{"id":2,"horarioId":1,"fecha":"2026-03-02","numero":2,"horaInicio":"10:00:00","horaFin":"12:00:00","estado":"AUSENTE"}]}
+```
+
+Cada control es una unidad de igual peso; una clase de dos bloques equivale a dos
+unidades. `JUSTIFICADA` se informa aparte y cuenta como falta. Por convención, los
+no marcados figuran como `PENDIENTE` y se excluyen del denominador: porcentaje =
+`presentes / (presentes + ausentes + justificadas) * 100`, redondeado a dos decimales.
+Sin controles marcados, porcentaje y `cumpleMinimo` son `null`. Se consideran solo
+los controles del rango consultado, incluso si el rango incluye fechas futuras. Las
+fechas sin horario o excluidas no generan controles. Las consultas de rango aceptan
+como máximo 366 días; se pueden consultar varios rangos para períodos más largos.
+
+**Base existente:** aplicar manualmente [database/add-schedules-and-controls.sql](database/add-schedules-and-controls.sql)
+antes de iniciar esta versión en Neon. La migración es aditiva: conserva la columna
+`descripcion` antigua y las asistencias existentes sin convertirlas automáticamente.
+Las materias anteriores tendrán fechas `null` y horarios vacíos hasta que su dueño
+las complete. Las asistencias anteriores siguen disponibles por su CRUD anterior y
+no se suman a los controles nuevos, porque no se puede inferir a qué bloque pertenecían.
+El SQL se aplica manualmente; el front debe adaptar el formulario y los contratos.
+Resumen para Angular: [docs/frontend-materias-asistencia.md](docs/frontend-materias-asistencia.md).
 
 ### Recursos de una materia
 
@@ -608,7 +692,8 @@ Respuesta:
 Estados: `PRESENTE`, `AUSENTE`, `JUSTIFICADA`. Una asistencia por materia y fecha;
 duplicados al crear o modificar devuelven **409**, incluso ante concurrencia por
 la restricción única de la base. La misma fecha puede usarse en distintas materias.
-No hay cálculos de asistencia mínima.
+Este CRUD conserva las asistencias anteriores, independientes de los nuevos
+controles por bloque; sus registros no se incluyen en el cálculo de abajo.
 
 ### Generar preguntas de práctica
 
@@ -668,7 +753,7 @@ Todos los errores controlados comparten:
 Fechas: `YYYY-MM-DD`, sin hora ni zona. Fecha de evaluación y asistencia obligatoria;
 fecha límite de pendiente opcional. No se restringen fechas pasadas/futuras.
 Nombres/títulos y contenido obligatorios rechazan blancos. Límites: nombre de
-usuario/materia 150, títulos y nombre de evaluación 200, descripciones 2000,
+usuario/materia 150, títulos y nombre de evaluación 200, descripciones de pendientes 2000,
 contenido de apunte 20000 caracteres. Opcionales omitidos en PUT quedan en `null`;
 para pendientes el estado solo cambia con PATCH.
 
@@ -734,6 +819,12 @@ Fuera de alcance: archivos, multimedia, chat, grupos,
 docentes, notificaciones, calendarios y sistemas de la facultad.
 
 ## Comprobaciones
+
+Revisión de materias y asistencia: `./mvnw.cmd -o -q verify`, **81 pruebas
+aprobadas**. Las pruebas específicas cubren bloques, porcentajes, justificadas,
+pendientes, exclusiones, validaciones, propiedad, edición y borrado. La migración
+aditiva se ejecutó dos veces en H2 con compatibilidad PostgreSQL y conservó datos
+históricos; las pruebas no se ejecutaron contra Neon.
 
 Refresh token: 72 pruebas de la suite sin fallos y 3 pruebas específicas de
 renovación sin fallos, incluida una prueba de uso simultáneo. Se usó H2, sin
