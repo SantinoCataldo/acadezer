@@ -3,6 +3,7 @@ WORKDIR /workspace
 
 COPY pom.xml ./
 COPY src ./src
+COPY database ./database
 RUN mvn -B -ntp clean verify
 
 FROM eclipse-temurin:21-jre-jammy
