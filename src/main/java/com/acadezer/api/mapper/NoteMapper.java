@@ -19,6 +19,12 @@ public class NoteMapper {
     }
 
     public NoteResponse toResponse(NoteEntity entity) {
-        return new NoteResponse(entity.getId(), entity.getTitulo(), entity.getContenido(), entity.getMateria().getId());
+        return new NoteResponse(
+                entity.getId(),
+                entity.getTitulo(),
+                entity.getContenido(),
+                entity.getMateria().getId(),
+                entity.getCreadoEn(),
+                entity.getActualizadoEn());
     }
 }
