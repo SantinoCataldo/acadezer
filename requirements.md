@@ -31,5 +31,5 @@ No se implementan resúmenes de apuntes, acceso con Google ni correos con Resend
 en esta entrega. La IA genera únicamente preguntas de práctica con respuestas.
 Contratos, ejemplos y limitaciones detallados en [README.md](README.md).
 
-23. Materias con fechas, porcentaje mínimo por defecto 75 y horarios semanales con uno o dos controles. Los períodos son atajos del frontend y no se guardan.
+23. Materias con fecha de inicio obligatoria, fecha de fin opcional (nula mientras está activa), horarios semanales con uno o dos controles y acción para finalizarlas. Los períodos son atajos del frontend y no se guardan.
 24. Cada bloque vale una unidad; justificadas cuentan como faltas, pendientes se muestran sin imputar y no entran al denominador.

@@ -38,7 +38,7 @@ class ScheduleAttendanceApiTests {
         alice = account(); bob = account();
         JsonNode created = call("POST", "/api/materias", SUBJECT, alice, 201);
         subject = created.path("id").asLong(); schedule = created.path("horarios").path(0).path("id").asLong();
-        assertThat(created.path("porcentajeAsistenciaMinima").decimalValue()).isEqualByComparingTo("75");
+        assertThat(created.has("porcentajeAsistenciaMinima")).isFalse();
         assertThat(created.has("descripcion")).isFalse(); assertThat(created.has("periodo")).isFalse();
     }
     private String controls() { return "/api/materias/" + subject + "/controles-asistencia?desde=2026-11-09&hasta=2026-11-09"; }
@@ -59,7 +59,6 @@ class ScheduleAttendanceApiTests {
         mark(2, "AUSENTE");
         JsonNode half = call("GET", controls(), null, alice, 200);
         assertThat(half.path("porcentajeAsistencia").decimalValue()).isEqualByComparingTo("50");
-        assertThat(half.path("cumpleMinimo").asBoolean()).isFalse();
         mark(2, "JUSTIFICADA");
         JsonNode justified = call("GET", controls(), null, alice, 200);
         assertThat(justified.path("justificadas").asInt()).isEqualTo(1);
@@ -89,9 +88,8 @@ class ScheduleAttendanceApiTests {
         long other = call("POST", "/api/materias", SUBJECT, bob, 201).path("id").asLong();
         call("PUT", "/api/materias/"+other+"/horarios/"+schedule+"/controles/2026-11-09/1", "{\"estado\":\"PRESENTE\"}", bob, 404);
     }
-    @Test void validatesDatesHoursPercentageAndControls() throws Exception {
+    @Test void validatesDatesHoursAndControls() throws Exception {
         call("POST", "/api/materias", SUBJECT.replace("2026-11-30", "2026-10-01"), alice, 400);
-        call("POST", "/api/materias", SUBJECT.replace("\"horarios\":", "\"porcentajeAsistenciaMinima\":101,\"horarios\":"), alice, 400);
         call("POST", "/api/materias", SUBJECT.replace("12:00", "07:00"), alice, 400);
         call("POST", "/api/materias", SUBJECT.replace("\"controlesAsistencia\":2", "\"controlesAsistencia\":3"), alice, 400);
         call("POST", "/api/materias", SUBJECT.replace("\"horarios\":", "\"periodo\":\"ANUAL\",\"horarios\":"), alice, 400);

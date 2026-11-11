@@ -12,6 +12,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.math.*;
 import java.time.*;
 import java.time.temporal.ChronoUnit;
+import java.time.ZoneId;
 import java.util.*;
 
 @Service @RequiredArgsConstructor @Transactional(readOnly = true)
@@ -23,15 +24,18 @@ public class AttendanceControlService {
 
     private SubjectEntity subject(Long id, String email) {
         SubjectEntity subject = subjects.owned(id, email);
-        if (subject.getFechaInicio() == null || subject.getFechaFin() == null)
-            throw new ApiException(409, "Configure las fechas y horarios de la materia antes de registrar controles");
+        if (subject.getFechaInicio() == null)
+            throw new ApiException(409, "Configure la fecha de inicio antes de usar los controles");
         return subject;
     }
     private ScheduleEntity schedule(Long subjectId, Long scheduleId, String email) {
         return schedules.findByIdAndMateriaIdAndMateriaUsuarioEmail(scheduleId, subjectId, email).orElseThrow(ApiException::notFound);
     }
     private void checkDate(SubjectEntity subject, ScheduleEntity schedule, LocalDate fecha, int numero) {
-        if (fecha.isBefore(subject.getFechaInicio()) || fecha.isAfter(subject.getFechaFin()) || Weekday.from(fecha.getDayOfWeek()) != schedule.getDiaSemana())
+        LocalDate end = subject.getFechaFin() == null
+            ? LocalDate.now(ZoneId.of("America/Argentina/Buenos_Aires"))
+            : subject.getFechaFin();
+        if (fecha.isBefore(subject.getFechaInicio()) || fecha.isAfter(end) || Weekday.from(fecha.getDayOfWeek()) != schedule.getDiaSemana())
             throw new ApiException(400, "La fecha no corresponde a una clase del horario");
         if (numero < 1 || numero > schedule.getControlesAsistencia()) throw new ApiException(400, "Número de control inválido para el horario");
         if (excludedDates.findByMateriaIdAndFecha(subject.getId(), fecha).isPresent()) throw new ApiException(409, "La fecha está marcada sin cursada");
@@ -55,7 +59,8 @@ public class AttendanceControlService {
     @Transactional
     public void exclude(Long subjectId, LocalDate fecha, String email) {
         SubjectEntity subject = subject(subjectId, email);
-        if (fecha.isBefore(subject.getFechaInicio()) || fecha.isAfter(subject.getFechaFin())) throw new ApiException(400, "La fecha está fuera de la materia");
+        if (fecha.isBefore(subject.getFechaInicio()) || (subject.getFechaFin() != null && fecha.isAfter(subject.getFechaFin())))
+            throw new ApiException(400, "La fecha está fuera de la materia");
         if (excludedDates.findByMateriaIdAndFecha(subjectId, fecha).isEmpty()) {
             ExcludedDateEntity excluded = new ExcludedDateEntity(); excluded.setMateria(subject); excluded.setFecha(fecha); excludedDates.saveAndFlush(excluded);
         }
@@ -76,7 +81,10 @@ public class AttendanceControlService {
         for (var item : controls.findByHorarioMateriaIdAndFechaBetween(subjectId, desde, hasta)) recorded.put(key(item.getHorario().getId(), item.getFecha(), item.getNumero()), item);
         List<AttendanceControlResponse> result = new ArrayList<>();
         LocalDate start = desde.isBefore(subject.getFechaInicio()) ? subject.getFechaInicio() : desde;
-        LocalDate end = hasta.isAfter(subject.getFechaFin()) ? subject.getFechaFin() : hasta;
+        LocalDate subjectEnd = subject.getFechaFin() == null
+            ? LocalDate.now(ZoneId.of("America/Argentina/Buenos_Aires"))
+            : subject.getFechaFin();
+        LocalDate end = hasta.isAfter(subjectEnd) ? subjectEnd : hasta;
         for (LocalDate date = start; !date.isAfter(end); date = date.plusDays(1)) {
             if (notHeld.contains(date)) continue;
             for (ScheduleEntity schedule : subject.getHorarios()) {
@@ -93,8 +101,7 @@ public class AttendanceControlService {
         }
         int marked = present + absent + justified;
         BigDecimal percentage = marked == 0 ? null : BigDecimal.valueOf(present).multiply(BigDecimal.valueOf(100)).divide(BigDecimal.valueOf(marked), 2, RoundingMode.HALF_UP);
-        return new AttendanceSummaryResponse(present, absent, justified, pending, marked, percentage,
-            subject.getPorcentajeAsistenciaMinima(), percentage == null ? null : percentage.compareTo(subject.getPorcentajeAsistenciaMinima()) >= 0, result);
+        return new AttendanceSummaryResponse(present, absent, justified, pending, marked, percentage, result);
     }
     private static String key(Long id, LocalDate date, int number) { return id + ":" + date + ":" + number; }
     private void checkRange(LocalDate from, LocalDate to) {

@@ -526,18 +526,19 @@ a cargo de quien administra la base; no se crea ninguna cuenta ni contraseña po
 | POST | `/api/materias` | 201, materia creada |
 | GET | `/api/materias/{id}` | 200, materia propia |
 | PUT | `/api/materias/{id}` | 200, materia actualizada |
+| PATCH | `/api/materias/{id}/finalizar` | 200, materia finalizada con fecha de hoy |
 | DELETE | `/api/materias/{id}` | 204, sin cuerpo |
 
 POST/PUT:
 
 ```json
-{"nombre":"Análisis Matemático","fechaInicio":"2026-03-01","fechaFin":"2026-07-31","porcentajeAsistenciaMinima":75,"horarios":[{"diaSemana":"LUNES","horaInicio":"08:00","horaFin":"12:00","controlesAsistencia":2}]}
+{"nombre":"Análisis Matemático","fechaInicio":"2026-03-01","fechaFin":null,"horarios":[{"diaSemana":"LUNES","horaInicio":"08:00","horaFin":"12:00","controlesAsistencia":2}]}
 ```
 
 Respuesta:
 
 ```json
-{"id":1,"nombre":"Análisis Matemático","fechaInicio":"2026-03-01","fechaFin":"2026-07-31","porcentajeAsistenciaMinima":75,"horarios":[{"id":1,"diaSemana":"LUNES","horaInicio":"08:00:00","horaFin":"12:00:00","controlesAsistencia":2}]}
+{"id":1,"nombre":"Análisis Matemático","fechaInicio":"2026-03-01","fechaFin":null,"horarios":[{"id":1,"diaSemana":"LUNES","horaInicio":"08:00:00","horaFin":"12:00:00","controlesAsistencia":2}]}
 ```
 
 **Borrar una materia elimina todos sus apuntes, pendientes, evaluaciones y
@@ -550,13 +551,14 @@ afectan otras materias. Un ID inexistente o de otro estudiante devuelve el mismo
 
 `periodo` es un atajo de Angular (trimestral, cuatrimestral o anual), no un campo
 persistido ni aceptado en JSON. Angular calcula una fecha de fin aproximada; ambas
-fechas se pueden ajustar antes de guardar. `fechaInicio` y `fechaFin` son obligatorias
-en creación/edición y el fin no puede preceder al inicio. `horarios` es una lista
+fechas se pueden ajustar antes de guardar. `fechaInicio` es obligatoria; `fechaFin`
+puede ser `null` para una materia activa y, si tiene valor, no puede preceder al inicio.
+La acción `PATCH /api/materias/{id}/finalizar` asigna la fecha actual de
+`America/Argentina/Buenos_Aires` y devuelve la materia actualizada. `horarios` es una lista
 obligatoria (puede estar vacía). `diaSemana`: `LUNES`, `MARTES`, `MIERCOLES`,
 `JUEVES`, `VIERNES`, `SABADO`, `DOMINGO`. Las horas tienen formato `HH:mm` y fin
 posterior a inicio; horarios de un mismo día no pueden superponerse. Cada horario
-admite uno o dos controles. El mínimo admite valores de 0 a 100 con hasta dos
-decimales; omitido o `null` toma 75.
+admite uno o dos controles. No se envía ni se devuelve un porcentaje mínimo.
 
 En PUT enviar el `id` de cada horario que se mantiene y omitirlo para uno nuevo.
 Quitar un horario sin controles lo elimina; un horario con controles guardados no
@@ -581,17 +583,18 @@ conservan y vuelven a aparecer si se elimina la exclusión.
 Ejemplo de respuesta del GET para una clase de 08:00 a 12:00 con dos controles:
 
 ```json
-{"presentes":1,"ausentes":1,"justificadas":0,"pendientes":0,"controlesMarcados":2,"porcentajeAsistencia":50.00,"porcentajeAsistenciaMinima":75.00,"cumpleMinimo":false,"controles":[{"id":1,"horarioId":1,"fecha":"2026-03-02","numero":1,"horaInicio":"08:00:00","horaFin":"10:00:00","estado":"PRESENTE"},{"id":2,"horarioId":1,"fecha":"2026-03-02","numero":2,"horaInicio":"10:00:00","horaFin":"12:00:00","estado":"AUSENTE"}]}
+{"presentes":1,"ausentes":1,"justificadas":0,"pendientes":0,"controlesMarcados":2,"porcentajeAsistencia":50.00,"controles":[{"id":1,"horarioId":1,"fecha":"2026-03-02","numero":1,"horaInicio":"08:00:00","horaFin":"10:00:00","estado":"PRESENTE"},{"id":2,"horarioId":1,"fecha":"2026-03-02","numero":2,"horaInicio":"10:00:00","horaFin":"12:00:00","estado":"AUSENTE"}]}
 ```
 
 Cada control es una unidad de igual peso; una clase de dos bloques equivale a dos
 unidades. `JUSTIFICADA` se informa aparte y cuenta como falta. Por convención, los
 no marcados figuran como `PENDIENTE` y se excluyen del denominador: porcentaje =
 `presentes / (presentes + ausentes + justificadas) * 100`, redondeado a dos decimales.
-Sin controles marcados, porcentaje y `cumpleMinimo` son `null`. Se consideran solo
-los controles del rango consultado, incluso si el rango incluye fechas futuras. Las
-fechas sin horario o excluidas no generan controles. Las consultas de rango aceptan
-como máximo 366 días; se pueden consultar varios rangos para períodos más largos.
+Sin controles marcados, el porcentaje es `null`. Se consideran solo los controles
+marcados del rango consultado; en materias activas, los controles previstos se limitan
+hasta hoy aunque `hasta` sea posterior. Las fechas sin horario o excluidas no generan
+controles. Las consultas de rango aceptan como máximo 366 días; se pueden consultar
+varios rangos para períodos más largos.
 
 **Base existente:** aplicar manualmente [database/add-schedules-and-controls.sql](database/add-schedules-and-controls.sql)
 antes de iniciar esta versión en Neon. La migración es aditiva: conserva la columna

@@ -36,6 +36,11 @@ public class SubjectController {
         return service.update(id, input, p.getName());
     }
 
+    @PatchMapping("/{id}/finalizar")
+    public SubjectResponse finalizeSubject(@PathVariable Long id, Principal p) {
+        return service.finalizeSubject(id, p.getName());
+    }
+
     @DeleteMapping("/{id}")
     @ResponseStatus(org.springframework.http.HttpStatus.NO_CONTENT)
     public void delete(@PathVariable Long id, Principal p) {

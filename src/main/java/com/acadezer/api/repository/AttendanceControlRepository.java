@@ -13,4 +13,6 @@ public interface AttendanceControlRepository extends JpaRepository<AttendanceCon
     void deleteByHorarioMateriaId(Long materiaId);
     @Query("select count(c) from AttendanceControlEntity c where c.horario.materia.id = :materiaId and (c.fecha < :inicio or c.fecha > :fin)")
     long countOutsideDates(Long materiaId, LocalDate inicio, LocalDate fin);
+    @Query("select count(c) from AttendanceControlEntity c where c.horario.materia.id = :materiaId and c.fecha < :inicio")
+    long countBeforeDate(Long materiaId, LocalDate inicio);
 }

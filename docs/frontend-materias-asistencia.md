@@ -1,17 +1,24 @@
 # Materias y asistencia para Angular
 
 Las rutas de materias siguen siendo `/api/materias`, pero cambia el JSON. Eliminar
-`descripcion` del formulario y enviar `fechaInicio`, `fechaFin`,
-`porcentajeAsistenciaMinima` (opcional, por defecto 75) y `horarios`.
+`descripcion` del formulario y enviar `fechaInicio`, `fechaFin` y `horarios`.
+`fechaInicio` es obligatoria; `fechaFin` acepta `null` para indicar que la materia
+sigue activa. El porcentaje mínimo ya no forma parte del contrato.
 
 Trimestral, cuatrimestral y anual son botones del formulario: calculan una fecha
 de fin aproximada a partir del inicio. No enviar `periodo` al backend; ambas fechas
-pueden editarse antes de guardar. En una materia anterior las fechas pueden venir
-en `null`; el estudiante debe completarlas para usar los controles nuevos.
+pueden editarse antes de guardar. Para una materia en curso, enviar `fechaFin: null`.
+En una materia anterior la fecha de inicio puede venir en `null`; hay que completarla
+antes de usar los controles nuevos.
 
 ```json
-{"nombre":"Análisis","fechaInicio":"2026-03-01","fechaFin":"2026-07-31","horarios":[{"diaSemana":"LUNES","horaInicio":"08:00","horaFin":"12:00","controlesAsistencia":2}]}
+{"nombre":"Análisis","fechaInicio":"2026-03-01","fechaFin":null,"horarios":[{"diaSemana":"LUNES","horaInicio":"08:00","horaFin":"12:00","controlesAsistencia":2}]}
 ```
+
+Para finalizar una materia en curso, llamar `PATCH /api/materias/{materiaId}/finalizar`.
+Guarda la fecha de hoy (zona `America/Argentina/Buenos_Aires`) en `fechaFin` y
+devuelve la materia actualizada. La acción responde 409 si ya estaba finalizada,
+si no tiene fecha de inicio o si existen controles fuera del rango resultante.
 
 Cada horario recibido tiene `id`. En PUT incluir el `id` de los que se mantienen;
 omitirlo en horarios nuevos. El servidor responde 409 si se intenta eliminar o
@@ -22,7 +29,8 @@ el formato habitual y 404. Los tipos están en [angular-contracts.ts](angular-co
 Usar `GET /api/materias/{materiaId}/controles-asistencia?desde=YYYY-MM-DD&hasta=YYYY-MM-DD`
 para mostrar bloques y resumen. Cada bloque trae `horarioId`, `fecha`, `numero`,
 `horaInicio`, `horaFin`, `id` y `estado`; un bloque no marcado tiene `id: null` y
-estado `PENDIENTE`. El rango es inclusivo y no puede superar 366 días.
+estado `PENDIENTE`. El rango es inclusivo y no puede superar 366 días. Para materias
+activas, la respuesta no genera controles posteriores a hoy.
 
 Para marcar o cambiar un bloque, usar
 `PUT /api/materias/{materiaId}/horarios/{horarioId}/controles/{fecha}/{numero}`

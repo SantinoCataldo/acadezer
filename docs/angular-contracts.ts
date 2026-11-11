@@ -58,8 +58,7 @@ export interface AdminStatsResponse {
 export interface SubjectRequest {
   nombre: string;
   fechaInicio: LocalDate;
-  fechaFin: LocalDate;
-  porcentajeAsistenciaMinima?: number | null;
+  fechaFin: LocalDate | null;
   horarios: ScheduleRequest[];
 }
 
@@ -68,7 +67,6 @@ export interface SubjectResponse {
   nombre: string;
   fechaInicio: LocalDate | null;
   fechaFin: LocalDate | null;
-  porcentajeAsistenciaMinima: number;
   horarios: ScheduleResponse[];
 }
 
@@ -98,8 +96,6 @@ export interface AttendanceSummaryResponse {
   pendientes: number;
   controlesMarcados: number;
   porcentajeAsistencia: number | null;
-  porcentajeAsistenciaMinima: number;
-  cumpleMinimo: boolean | null;
   controles: AttendanceControlResponse[];
 }
 

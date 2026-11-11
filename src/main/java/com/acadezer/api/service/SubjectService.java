@@ -13,6 +13,8 @@ import java.util.List;
 import java.util.HashSet;
 import com.acadezer.api.dto.request.ScheduleRequest;
 import com.acadezer.api.model.ScheduleEntity;
+import java.time.LocalDate;
+import java.time.ZoneId;
 
 @Service
 @RequiredArgsConstructor
@@ -53,10 +55,29 @@ public class SubjectService {
     public SubjectResponse update(Long id, SubjectRequest request, String email) {
         SubjectEntity entity = owned(id, email);
         validate(request);
-        if (controls.countOutsideDates(id, request.fechaInicio(), request.fechaFin()) > 0)
+        long outsideControls = request.fechaFin() == null
+            ? controls.countBeforeDate(id, request.fechaInicio())
+            : controls.countOutsideDates(id, request.fechaInicio(), request.fechaFin());
+        if (outsideControls > 0)
             throw new ApiException(409, "Las fechas dejarían controles registrados fuera de la materia");
         applySchedules(entity, request.horarios());
         mapper.updateEntity(entity, request);
+        return mapper.toResponse(entity);
+    }
+
+    @Transactional
+    public SubjectResponse finalizeSubject(Long id, String email) {
+        SubjectEntity entity = owned(id, email);
+        if (entity.getFechaFin() != null)
+            throw new ApiException(409, "La materia ya está finalizada");
+        if (entity.getFechaInicio() == null)
+            throw new ApiException(409, "Configure la fecha de inicio antes de finalizar la materia");
+        LocalDate today = LocalDate.now(ZoneId.of("America/Argentina/Buenos_Aires"));
+        if (today.isBefore(entity.getFechaInicio()))
+            throw new ApiException(409, "No se puede finalizar una materia antes de su fecha de inicio");
+        if (controls.countOutsideDates(id, entity.getFechaInicio(), today) > 0)
+            throw new ApiException(409, "Hay controles registrados fuera del rango de la materia");
+        entity.setFechaFin(today);
         return mapper.toResponse(entity);
     }
 
@@ -73,7 +94,8 @@ public class SubjectService {
     }
 
     private void validate(SubjectRequest request) {
-        if (request.fechaFin().isBefore(request.fechaInicio())) throw new ApiException(400, "La fecha de fin debe ser igual o posterior a la de inicio");
+        if (request.fechaFin() != null && request.fechaFin().isBefore(request.fechaInicio()))
+            throw new ApiException(400, "La fecha de fin debe ser igual o posterior a la de inicio");
         for (int i = 0; i < request.horarios().size(); i++) {
             ScheduleRequest a = request.horarios().get(i);
             if (!a.horaInicio().isBefore(a.horaFin())) throw new ApiException(400, "La hora de fin debe ser posterior a la de inicio");
