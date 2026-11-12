@@ -128,9 +128,14 @@ export interface TaskResponse {
   materiaId: number;
 }
 
+export type ExamType = 'PARCIAL_1' | 'PARCIAL_2' | 'FINAL' | 'RECUPERATORIO' | 'TP';
+export type ExamStatus = 'APROBADO' | 'DESAPROBADO' | 'PENDIENTE';
+
 export interface ExamRequest {
   nombre: string;
   fecha: LocalDate;
+  tipo: ExamType;
+  estado: ExamStatus;
   calificacion?: number | null;
 }
 
@@ -138,6 +143,8 @@ export interface ExamResponse {
   id: number;
   nombre: string;
   fecha: LocalDate;
+  tipo: ExamType;
+  estado: ExamStatus;
   calificacion: number | null;
   materiaId: number;
 }
