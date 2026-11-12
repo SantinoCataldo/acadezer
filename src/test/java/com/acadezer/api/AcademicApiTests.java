@@ -56,7 +56,7 @@ class AcademicApiTests {
         return switch (resource) {
             case "apuntes" -> "{\"titulo\":\"Derivadas\",\"contenido\":\"La derivada describe la tasa de cambio de una función respecto de su variable independiente. La derivada de una constante es cero; la de x al cuadrado es dos por x.\"}";
             case "pendientes" -> "{\"titulo\":\"Resolver guía\",\"fechaLimite\":\"2026-11-10\"}";
-            case "evaluaciones" -> "{\"nombre\":\"Primer parcial\",\"fecha\":\"2026-11-10\",\"calificacion\":7.25}";
+            case "evaluaciones" -> "{\"nombre\":\"Primer parcial\",\"fecha\":\"2026-11-10\",\"tipo\":\"PARCIAL_1\",\"estado\":\"PENDIENTE\",\"calificacion\":7.25}";
             default -> "{\"fecha\":\"2026-11-10\",\"estado\":\"PRESENTE\"}";
         };
     }
