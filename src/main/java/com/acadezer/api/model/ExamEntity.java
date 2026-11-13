@@ -1,8 +1,6 @@
 package com.acadezer.api.model;
 
 import jakarta.persistence.*;
-import com.acadezer.api.enums.ExamStatus;
-import com.acadezer.api.enums.ExamType;
 import lombok.*;
 import java.time.LocalDate;
 import java.math.BigDecimal;
@@ -23,14 +21,6 @@ public class ExamEntity {
 
     @Column(nullable = false)
     private LocalDate fecha;
-
-    @Enumerated(EnumType.STRING)
-    @Column(nullable = false, length = 15)
-    private ExamType tipo;
-
-    @Enumerated(EnumType.STRING)
-    @Column(nullable = false, length = 15)
-    private ExamStatus estado;
 
     @Column(precision = 4, scale = 2)
     private BigDecimal calificacion;

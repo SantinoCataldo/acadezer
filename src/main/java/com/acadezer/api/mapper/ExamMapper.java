@@ -16,13 +16,11 @@ public class ExamMapper {
     public void updateEntity(ExamEntity entity, ExamRequest request) {
         entity.setNombre(request.nombre());
         entity.setFecha(request.fecha());
-        entity.setTipo(request.tipo());
-        entity.setEstado(request.estado());
         entity.setCalificacion(request.calificacion());
     }
 
     public ExamResponse toResponse(ExamEntity entity) {
-        return new ExamResponse(entity.getId(), entity.getNombre(), entity.getFecha(), entity.getTipo(),
-                entity.getEstado(), entity.getCalificacion(), entity.getMateria().getId());
+        return new ExamResponse(entity.getId(), entity.getNombre(), entity.getFecha(), entity.getCalificacion(),
+                entity.getMateria().getId());
     }
 }
